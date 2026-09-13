@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="移动点光源，追迹双凸透镜的真实折射，在二维像面观察球差、彗差与色差。">
+<title>像差实验室 · 点光源追迹</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%230b1220'/%3E%3Ccircle cx='20' cy='20' r='10' fill='none' stroke='%235fe0d2' stroke-width='2'/%3E%3Cpath d='M4 20h32M20 4v32' stroke='%23f1b85b' stroke-width='1.5'/%3E%3C/svg%3E">
+<style>/* STYLES */</style>
+</head>
+<body>
+<header><div class="brand"><span class="mark">✳</span><h1>像差实验室</h1><span class="small">POINT SOURCE</span></div><button id="reset" type="button">重置</button></header>
+<main>
+  <section class="stage" aria-label="三维光源与透镜">
+    <canvas id="scene" tabindex="0" aria-label="三维光路。拖动黄色光源移动，拖动空白旋转，滚轮缩放。也可使用右侧坐标滑块。"></canvas>
+    <div class="stage-top"><strong>点光源 → 球面透镜 → 像面</strong><span id="scene-state"></span></div>
+    <div id="source-handle" class="drag-tag source-tag" role="button" tabindex="0" aria-label="移动点光源，方向键改变 x 和 y，PageUp 和 PageDown 改变 z">光源 <span>✥</span></div>
+    <div id="sensor-handle" class="drag-tag sensor-tag" role="button" tabindex="0" aria-label="移动像面，左右方向键改变位置">像面 <span>↔</span></div>
+    <section class="spot-window" aria-label="二维像面小窗">
+      <div class="spot-heading"><h2>像面 · 正视</h2><span id="spot-z"></span></div>
+      <canvas id="spot" aria-label="光线与当前像面交点的二维散点图"></canvas>
+      <div class="spot-options"><label><input id="follow-spot" type="checkbox" checked>跟随光斑</label><select id="spot-scale" aria-label="二维小窗的半宽"><option value="0.1">±0.1 mm</option><option value="0.25">±0.25 mm</option><option value="0.5">±0.5 mm</option><option value="1.5">±1.5 mm</option><option value="2" selected>±2 mm</option><option value="10">±10 mm</option><option value="40">±40 mm</option></select></div>
+      <div class="spot-meta"><span id="spot-center"></span><span id="spot-clipped"></span></div>
+    </section>
+    <div class="stage-bottom"><span>拖动光源移动 · 空白旋转 · 滚轮缩放</span><button id="view-reset" type="button">复位视角</button></div>
+  </section>
+  <aside class="panel" aria-label="实验参数">
+    <div class="presets" role="group" aria-label="像差观察预设"><button data-mode="spherical" type="button">球差</button><button data-mode="coma" type="button">彗差</button><button data-mode="chromatic" type="button">色差</button></div>
+    <fieldset><legend>光源位置 <small>mm</small></legend>
+      <div class="control"><label for="source-x">水平 x <output id="source-x-value"></output></label><input id="source-x" type="range" min="-25" max="25" step=".1" value="0"></div>
+      <div class="control"><label for="source-y">垂直 y <output id="source-y-value"></output></label><input id="source-y" type="range" min="-25" max="25" step=".1" value="0"></div>
+      <div class="control"><label for="source-z">轴向 z <output id="source-z-value"></output></label><input id="source-z" type="range" min="-160" max="-42" step=".1" value="-85"></div>
+      <div class="derived"><span>视场角</span><span id="field-value"></span></div>
+    </fieldset>
+    <fieldset><legend>透镜与光线</legend>
+      <div class="control"><label for="aperture">入射孔径 <output id="aperture-value"></output></label><input id="aperture" type="range" min="2" max="10" step=".1" value="8"></div>
+      <div class="spectrum"><label for="spectrum">光谱</label><select id="spectrum"><option value="mono">单色</option><option value="rgb">蓝 / 绿 / 红</option></select></div>
+      <div class="control" id="wavelength-control"><label for="wavelength">波长 <output id="wavelength-value"></output></label><input id="wavelength" type="range" min="450" max="650" step="1" value="550"></div>
+      <div class="checks"><label><input id="show-rays" type="checkbox" checked>少量光线</label><label><input id="show-mesh" type="checkbox" checked>透镜网格</label></div>
+    </fieldset>
+    <fieldset><legend>汇聚面</legend>
+      <div class="control"><label for="focus-position">位置 z <output id="focus-value"></output></label><input id="focus-position" type="range" min="8" max="160" step=".01" value="40"></div>
+      <div class="focus-buttons"><button type="button" id="paraxial">近轴像面</button><button type="button" id="best-focus">最小光斑</button></div>
+    </fieldset>
+    <div class="readings" aria-live="polite"><div><span>RMS 半径</span><strong id="rms-value"></strong></div><div><span>包围光斑直径</span><strong id="diameter-value"></strong></div></div>
+    <details><summary>模型参数</summary><p>N-BK7 双凸透镜；R₁ = +28 mm，R₂ = −28 mm，中心厚度 6 mm。逐面按斯涅尔定律折射，包含材料色散与口径遮挡。几何光斑，不含衍射。</p><p>像面 z 从透镜中心量起。预设改变实验条件，像差由同一透镜自然产生。</p><a href="https://www.schott.com/shop/advanced-optics/en/Optical-Glass/N-BK7/c/glass-N-BK7" target="_blank" rel="noopener">N-BK7 材料数据 ↗</a></details>
+  </aside>
+</main>
+<script>/* ENGINE */</script>
+<script>/* APP */</script>
+</body></html>
