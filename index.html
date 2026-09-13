@@ -238,7 +238,7 @@
     const spot=state.mode==="spherical"?Math.abs(z)*.42:state.mode==="coma"?Math.abs(x)*.7:Math.abs((state.wavelength-550)*.0042)*.46;
     $("metric-z").innerHTML=fmt(z,2)+"<small>mm</small>";$("metric-x").innerHTML=fmt(x,2)+"<small>mm</small>";$("metric-spot").innerHTML=fmt(spot,2)+"<small>mm</small>";
     $("aperture-value").innerHTML=Math.round(ap*100)+"<em>%</em>";$("field-value").innerHTML=fmt(field,1)+"<em>°</em>";$("wavelength-value").innerHTML=Math.round(state.wavelength)+"<em>nm</em>";
-    $("scene-mode").textContent=modeNames[state.mode];$("scene-state").textContent=(state.focus==="best"?"最佳焦面":state.focus==="manual"?"可移动汇聚面":"近轴光线 · 当前焦面");$("focus-value").innerHTML=fmt(focalPlane(),2)+"<em>mm</em>";
+    $("scene-mode").textContent=modeNames[state.mode];$("scene-state").textContent="视场 "+fmt(state.field,1)+"° · "+(state.focus==="best"?"最佳焦面":state.focus==="manual"?"可移动汇聚面":"近轴焦面");$("focus-value").innerHTML=fmt(focalPlane(),2)+"<em>mm</em>";
   }
   function syncRange(input,value,min,max){input.value=value;input.style.setProperty("--fill",((value-min)/(max-min)*100)+"%")}
   function syncUI(){
