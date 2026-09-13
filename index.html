@@ -114,7 +114,12 @@
         <div class="range-labels"><span>蓝 450</span><span>红 650</span></div>
       </div>
       <div class="control">
-        <div class="control-head"><label>观察焦面</label></div>
+        <div class="control-head"><label for="focus-position">汇聚面位置 z</label><span class="value" id="focus-value">4.20<em>mm</em></span></div>
+        <input id="focus-position" type="range" min="3.20" max="5.20" value="4.20" step=".05">
+        <div class="range-labels"><span>3.20 mm</span><span>5.20 mm</span></div>
+      </div>
+      <div class="control">
+        <div class="control-head"><label>快速对焦</label></div>
         <div class="focus-row">
           <button type="button" data-focus="paraxial" class="active">近轴焦面</button>
           <button type="button" data-focus="best">最佳焦面</button>
@@ -143,7 +148,7 @@
   const canvas = document.getElementById("scene");
   const ctx = canvas.getContext("2d");
   const TAU = Math.PI * 2;
-  const state = {mode:"spherical", aperture:.72, field:4, wavelength:550, focus:"paraxial", showRays:true, showMesh:true, yaw:-.56, pitch:.20, zoom:1};
+  const state = {mode:"spherical", aperture:.72, field:4, wavelength:550, focus:"paraxial", focusZ:4.2, showRays:true, showMesh:true, yaw:-.56, pitch:.20, zoom:1};
   const colors = {teal:"#5fe0d2", amber:"#f1b85b", violet:"#bb9cff", red:"#ff758e", blue:"#66a7ff", glass:"#61c9d2"};
   let dpr = 1, w = 0, h = 0, dragging = false, lastX = 0, lastY = 0;
   const $ = id => document.getElementById(id);
@@ -198,25 +203,27 @@
   function aberrationFor(r,wl){
     const ap=state.aperture, field=state.field*Math.PI/180;
     if(state.mode==="spherical")return {x:0,y:0,z:4.2-.92*ap*ap*r*r};
-    if(state.mode==="coma")return {x:.52*Math.tan(field)*r*r,y:.10*Math.sin(TAU*r)*r,z:4.2-.08*ap*ap*r};
+    if(state.mode==="coma")return {x:.95*Math.tan(field)*(.32+.68*r*r),y:.12*Math.sin(TAU*r)*r,z:4.2-.08*ap*ap*r};
     return {x:0,y:0,z:4.2-(wl-550)*.0042};
   }
   function focalPlane(){
+    if(state.focus==="manual")return state.focusZ;
     if(state.focus==="paraxial")return 4.2;
     if(state.mode==="spherical")return 4.2-.46*state.aperture*state.aperture;
     if(state.mode==="chromatic")return 4.2-(state.wavelength-550)*.0042;
     return 4.2;
   }
   function rayBundle(){
-    const rays=[]; const rings=state.mode==="chromatic"?[.14,.38,.64,.9]:[.16,.38,.62,.86,1];
-    const n=state.mode==="coma"?8:6; const wavelengths=state.mode==="chromatic"?[450,550,650]:[state.wavelength];
+    const rays=[]; const rings=state.mode==="chromatic"?[.45,1]:[.25,.62,1];
+    const n=4; const wavelengths=state.mode==="chromatic"?[450,550,650]:[state.wavelength];
     wavelengths.forEach(wl=>rings.forEach((r,ri)=>{
       const rr=r*state.aperture; for(let i=0;i<n;i++){const a=TAU*i/n+(ri%2)*.18;const hit={x:rr*Math.cos(a)*1.7,y:rr*Math.sin(a)*1.7,z:0};const f=aberrationFor(r,wl);const target={x:f.x,y:f.y,z:f.z};const beyond={x:target.x+(target.x-hit.x)*.35,y:target.y+(target.y-hit.y)*.35,z:target.z+.95};const sensorT=(focalPlane())/target.z;const sensor={x:hit.x+(target.x-hit.x)*sensorT,y:hit.y+(target.y-hit.y)*sensorT,z:focalPlane()};rays.push({wl,r,hit,target,beyond,sensor,color:wavelengthColor(wl)})}
     })); return rays;
   }
   function drawRays(){
     if(!state.showRays)return; const rays=rayBundle();
-    rays.forEach(ray=>{line3({x:ray.hit.x,y:ray.hit.y,z:-5},{x:ray.hit.x,y:ray.hit.y,z:0},ray.color,1.25,.72);line3(ray.hit,ray.target,ray.color,1.35,.9);line3(ray.target,ray.beyond,ray.color,.9,.34,[3,4])});
+    const field=state.field*Math.PI/180;
+    rays.forEach(ray=>{const start={x:ray.hit.x-Math.tan(field)*5,y:ray.hit.y,z:-5};line3(start,ray.hit,ray.color,1.35,.78);line3(ray.hit,ray.target,ray.color,1.45,.92);line3(ray.target,ray.beyond,ray.color,.9,.34,[3,4])});
     rays.forEach(ray=>{const p=project(ray.sensor);ctx.save();ctx.fillStyle=ray.color;ctx.globalAlpha=.83;ctx.beginPath();ctx.arc(p.x,p.y,2.15,0,TAU);ctx.fill();ctx.restore()});
   }
   function draw(){
@@ -231,11 +238,11 @@
     const spot=state.mode==="spherical"?Math.abs(z)*.42:state.mode==="coma"?Math.abs(x)*.7:Math.abs((state.wavelength-550)*.0042)*.46;
     $("metric-z").innerHTML=fmt(z,2)+"<small>mm</small>";$("metric-x").innerHTML=fmt(x,2)+"<small>mm</small>";$("metric-spot").innerHTML=fmt(spot,2)+"<small>mm</small>";
     $("aperture-value").innerHTML=Math.round(ap*100)+"<em>%</em>";$("field-value").innerHTML=fmt(field,1)+"<em>°</em>";$("wavelength-value").innerHTML=Math.round(state.wavelength)+"<em>nm</em>";
-    $("scene-mode").textContent=modeNames[state.mode];$("scene-state").textContent=(state.focus==="best"?"最佳焦面":"近轴光线 · 当前焦面");
+    $("scene-mode").textContent=modeNames[state.mode];$("scene-state").textContent=(state.focus==="best"?"最佳焦面":state.focus==="manual"?"可移动汇聚面":"近轴光线 · 当前焦面");$("focus-value").innerHTML=fmt(focalPlane(),2)+"<em>mm</em>";
   }
   function syncRange(input,value,min,max){input.value=value;input.style.setProperty("--fill",((value-min)/(max-min)*100)+"%")}
   function syncUI(){
-    syncRange($("aperture"),state.aperture*100,25,100);syncRange($("field"),state.field,0,12);syncRange($("wavelength"),state.wavelength,450,650);
+    syncRange($("aperture"),state.aperture*100,25,100);syncRange($("field"),state.field,0,12);syncRange($("wavelength"),state.wavelength,450,650);syncRange($("focus-position"),focalPlane(),3.2,5.2);
     document.querySelectorAll("[data-mode]").forEach(b=>{const on=b.dataset.mode===state.mode;b.classList.toggle("active",on);b.setAttribute("aria-selected",String(on))});
     document.querySelectorAll("[data-focus]").forEach(b=>b.classList.toggle("active",b.dataset.focus===state.focus));
     $("show-rays").checked=state.showRays;$("show-mesh").checked=state.showMesh;draw();
@@ -245,9 +252,10 @@
   $("aperture").addEventListener("input",e=>{state.aperture=Number(e.target.value)/100;e.target.style.setProperty("--fill",e.target.value+"%");draw()});
   $("field").addEventListener("input",e=>{state.field=Number(e.target.value);e.target.style.setProperty("--fill",(state.field/12*100)+"%");draw()});
   $("wavelength").addEventListener("input",e=>{state.wavelength=Number(e.target.value);e.target.style.setProperty("--fill",((state.wavelength-450)/200*100)+"%");draw()});
+  $("focus-position").addEventListener("input",e=>{state.focus="manual";state.focusZ=Number(e.target.value);e.target.style.setProperty("--fill",((state.focusZ-3.2)/2*100)+"%");syncUI()});
   $("show-rays").addEventListener("change",e=>{state.showRays=e.target.checked;draw()});
   $("show-mesh").addEventListener("change",e=>{state.showMesh=e.target.checked;draw()});
-  $("reset").addEventListener("click",()=>{Object.assign(state,{mode:"spherical",aperture:.72,field:4,wavelength:550,focus:"paraxial",showRays:true,showMesh:true,yaw:-.56,pitch:.20,zoom:1});syncUI();setInsight()});
+  $("reset").addEventListener("click",()=>{Object.assign(state,{mode:"spherical",aperture:.72,field:4,wavelength:550,focus:"paraxial",focusZ:4.2,showRays:true,showMesh:true,yaw:-.56,pitch:.20,zoom:1});syncUI();setInsight()});
   canvas.addEventListener("pointerdown",e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;canvas.classList.add("dragging");canvas.setPointerCapture(e.pointerId)});
   canvas.addEventListener("pointermove",e=>{if(!dragging)return;state.yaw+=(e.clientX-lastX)*.009;state.pitch=clamp(state.pitch+(e.clientY-lastY)*.009,-.9,.9);lastX=e.clientX;lastY=e.clientY;draw()});
   canvas.addEventListener("pointerup",()=>{dragging=false;canvas.classList.remove("dragging")});
@@ -258,9 +266,9 @@
   function setInsight(){ $("insight").dataset.mode=state.mode;$("insight-title").textContent=copy[state.mode][0];$("insight-copy").textContent=copy[state.mode][1]; }
   const modelContext=document.modelContext;
   if(modelContext&&modelContext.registerTool){
-    const result=()=>({model:state.mode,parameters:{aperture:state.aperture,field:state.field,wavelength:state.wavelength,focus:state.focus},readings:{longitudinalAberration:state.mode==="spherical"?-.92*state.aperture*state.aperture:state.mode==="chromatic"?-(state.wavelength-550)*.0042:-.08*state.aperture*state.aperture}});
+    const result=()=>({model:state.mode,parameters:{aperture:state.aperture,field:state.field,wavelength:state.wavelength,focus:state.focus,focusZ:focalPlane()},readings:{longitudinalAberration:state.mode==="spherical"?-.92*state.aperture*state.aperture:state.mode==="chromatic"?-(state.wavelength-550)*.0042:-.08*state.aperture*state.aperture}});
     try{modelContext.registerTool({name:"get_aberration_experiment",title:"读取像差实验",description:"读取当前三维像差模型的参数与读数。",inputSchema:{type:"object",properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:result});}catch(e){}
-    try{modelContext.registerTool({name:"configure_aberration_experiment",title:"调节像差实验",description:"切换像差模型并设置孔径、视场角、波长与焦面。",inputSchema:{type:"object",properties:{model:{enum:["spherical","coma","chromatic"]},aperture:{type:"number",minimum:.25,maximum:1},field:{type:"number",minimum:0,maximum:12},wavelength:{type:"number",minimum:450,maximum:650},focus:{enum:["paraxial","best"]}},required:["model"],additionalProperties:false},annotations:{readOnlyHint:false},execute:input=>{if(!input||!["spherical","coma","chromatic"].includes(input.model))throw new Error("Invalid model");Object.assign(state,input);syncUI();return result()}});}catch(e){}
+    try{modelContext.registerTool({name:"configure_aberration_experiment",title:"调节像差实验",description:"切换像差模型并设置孔径、视场角、波长与汇聚面位置。",inputSchema:{type:"object",properties:{model:{enum:["spherical","coma","chromatic"]},aperture:{type:"number",minimum:.25,maximum:1},field:{type:"number",minimum:0,maximum:12},wavelength:{type:"number",minimum:450,maximum:650},focus:{enum:["paraxial","best","manual"]},focusZ:{type:"number",minimum:3.2,maximum:5.2}},required:["model"],additionalProperties:false},annotations:{readOnlyHint:false},execute:input=>{if(!input||!["spherical","coma","chromatic"].includes(input.model))throw new Error("Invalid model");Object.assign(state,input);syncUI();return result()}});}catch(e){}
   }
   syncUI(); setInsight(); resize();
 })();
